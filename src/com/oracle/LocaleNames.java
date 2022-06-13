@@ -1,5 +1,7 @@
 package com.oracle;
 
+import sun.util.locale.provider.LocaleProviderAdapter;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -7,8 +9,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 import java.util.function.Function;
@@ -28,6 +32,10 @@ public class LocaleNames {
     private static final String CNFILES = "CurrencyNames(_*([^.]*))\\.properties";
 
     private static Path OUTDIR;
+
+    // COMPAT supported locales
+    private static List<Locale> LNLOCS = Arrays.asList(LocaleProviderAdapter.forJRE().getLocaleNameProvider().getAvailableLocales());
+    private static List<Locale> CNLOCS = Arrays.asList(LocaleProviderAdapter.forJRE().getCurrencyNameProvider().getAvailableLocales());
 
     public static void main(String[] args) throws IOException {
         Path inDir = Paths.get(args[0]);
@@ -62,13 +70,13 @@ public class LocaleNames {
 
                         if (m1.matches()) {
                             String id = m1.group("id");
-                            line = getLine(id, loc, (l) -> builder.setLanguage(id).build().getDisplayLanguage(l));
+                            line = getLine(id, loc, LNLOCS, (l) -> builder.setLanguage(id).build().getDisplayLanguage(l));
                         } else if (m2.matches()) {
                             String id = m2.group("id");
-                            line = getLine(id, loc, (l) -> builder.setRegion(id).build().getDisplayCountry(l));
+                            line = getLine(id, loc, LNLOCS, (l) -> builder.setRegion(id).build().getDisplayCountry(l));
                         } else if (m3.matches()) {
                             String id = m3.group("id");
-                            line = getLine(id, loc, (l) -> builder.setScript(id).build().getDisplayScript(l));
+                            line = getLine(id, loc, LNLOCS, (l) -> builder.setScript(id).build().getDisplayScript(l));
                         }
                         return line != null ? Stream.of(line) : Stream.empty();
                     })
@@ -101,7 +109,7 @@ public class LocaleNames {
 
                         if (m1.matches()) {
                             String id = m1.group("id");
-                            line = getLine(id, loc, (l) -> Currency.getInstance(id.toUpperCase(Locale.ROOT)).getDisplayName(l));
+                            line = getLine(id, loc, CNLOCS, (l) -> Currency.getInstance(id.toUpperCase(Locale.ROOT)).getDisplayName(l));
                         }
                         return line != null ? Stream.of(line) : Stream.empty();
                     })
@@ -125,7 +133,7 @@ public class LocaleNames {
                 .toString();
     }
 
-    static String getLine(String id, Locale loc, Function<Locale, String> getter) {
+    static String getLine(String id, Locale loc, List<Locale> supported, Function<Locale, String> getter) {
         var cands = ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES).getCandidateLocales("", loc);
         var parent = loc.equals(Locale.ROOT) ? Locale.ROOT :
                 cands.get(IntStream.range(0, cands.size())
@@ -133,12 +141,11 @@ public class LocaleNames {
                         .findFirst()
                         .orElseThrow() + 1);
         var lName = getter.apply(loc);
-        var pName = getter.apply(parent);
 
-        if (loc.equals(Locale.ROOT)) {
+        if (loc.equals(Locale.ROOT) || !supported.contains(parent)) {
             return id + "=" + lName;
         } else {
-            return lName.equals(pName) ? null : id + "=" + lName;
+            return lName.equals(getter.apply(parent)) ? null : id + "=" + lName;
         }
     }
 }
