@@ -10,8 +10,12 @@ import java.time.LocalDate;
 import java.util.Currency;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.ResourceBundle;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class LocaleNames {
 
@@ -21,7 +25,6 @@ public class LocaleNames {
     private static final String LNFILES = "LocaleNames(_*([^.]*))\\.properties";
 
     private static final Pattern CNAME = Pattern.compile("(?<id>[a-z]{3})=.*");
-    private static final Pattern CSYMBOL = Pattern.compile("(?<id>[A-Z]{3})=.*");
     private static final String CNFILES = "CurrencyNames(_*([^.]*))\\.properties";
 
     private static Path OUTDIR;
@@ -45,39 +48,29 @@ public class LocaleNames {
             case "no-NO-NY" -> Locale.of("no", "NO", "NY");
             default -> Locale.forLanguageTag(langTag);
         };
+        var builder = new Locale.Builder();
         System.out.println("file: " + propertiesFile + ", loc: " + loc);
 
         try {
             var origLines = Files.readAllLines(propertiesFile);
             var lines = origLines.stream()
-                    .map(l -> {
-                        Matcher m1 = LANG.matcher(l);
-                        Matcher m2 = RGN.matcher(l);
-                        Matcher m3 = SCPT.matcher(l);
+                    .flatMap(line -> {
+                        Matcher m1 = LANG.matcher(line);
+                        Matcher m2 = RGN.matcher(line);
+                        Matcher m3 = SCPT.matcher(line);
+                        builder.clear();
 
                         if (m1.matches()) {
                             String id = m1.group("id");
-                            l = id + "=" +
-                                    new Locale.Builder()
-                                            .setLanguage(id)
-                                            .build()
-                                            .getDisplayLanguage(loc);
+                            line = getLine(id, loc, (l) -> builder.setLanguage(id).build().getDisplayLanguage(l));
                         } else if (m2.matches()) {
                             String id = m2.group("id");
-                            l = id + "=" +
-                                    new Locale.Builder()
-                                            .setRegion(id)
-                                            .build()
-                                            .getDisplayCountry(loc);
+                            line = getLine(id, loc, (l) -> builder.setRegion(id).build().getDisplayCountry(l));
                         } else if (m3.matches()) {
                             String id = m3.group("id");
-                            l = id + "=" +
-                                    new Locale.Builder()
-                                            .setScript(id)
-                                            .build()
-                                            .getDisplayScript(loc);
+                            line = getLine(id, loc, (l) -> builder.setScript(id).build().getDisplayScript(l));
                         }
-                        return l;
+                        return line != null ? Stream.of(line) : Stream.empty();
                     })
                     .map(LocaleNames::encode)
                     .toList();
@@ -103,18 +96,14 @@ public class LocaleNames {
         try {
             var origLines = Files.readAllLines(propertiesFile);
             var lines = origLines.stream()
-                    .map(l -> {
-                        Matcher m1 = CNAME.matcher(l);
-//                        Matcher m2 = CSYMBOL.matcher(l);
+                    .flatMap(line -> {
+                        Matcher m1 = CNAME.matcher(line);
 
                         if (m1.matches()) {
                             String id = m1.group("id");
-                            l = id + "=" + Currency.getInstance(id.toUpperCase(Locale.ROOT)).getDisplayName(loc);
-//                        } else if (m2.matches()) {
-//                            String id = m2.group("id");
-//                            l = id + "=" + Currency.getInstance(id).getSymbol(loc);
+                            line = getLine(id, loc, (l) -> Currency.getInstance(id.toUpperCase(Locale.ROOT)).getDisplayName(l));
                         }
-                        return l;
+                        return line != null ? Stream.of(line) : Stream.empty();
                     })
                     .map(LocaleNames::encode)
                     .toList();
@@ -134,5 +123,22 @@ public class LocaleNames {
                 .mapToObj(c -> c < 0x80 ? Character.toString(c) : "\\u" + HexFormat.of().toHexDigits(c).substring(4))
                 .collect(StringBuilder::new, StringBuilder::append, StringBuilder::append)
                 .toString();
+    }
+
+    static String getLine(String id, Locale loc, Function<Locale, String> getter) {
+        var cands = ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES).getCandidateLocales("", loc);
+        var parent = loc.equals(Locale.ROOT) ? Locale.ROOT :
+                cands.get(IntStream.range(0, cands.size())
+                        .filter(i -> cands.get(i).equals(loc))
+                        .findFirst()
+                        .orElseThrow() + 1);
+        var lName = getter.apply(loc);
+        var pName = getter.apply(parent);
+
+        if (loc.equals(Locale.ROOT)) {
+            return id + "=" + lName;
+        } else {
+            return lName.equals(pName) ? null : id + "=" + lName;
+        }
     }
 }
