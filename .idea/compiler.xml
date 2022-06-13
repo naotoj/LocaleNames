@@ -2,7 +2,7 @@
 <project version="4">
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="LocaleNames" options="--add-exports java.base/sun.util.locale.provider=ALL-UNNAMED" />
+      <module name="LocaleNames" options="--add-exports java.base/sun.util.locale.provider=ALL-UNNAMED --add-exports java.base/sun.util.resources=ALL-UNNAMED" />
     </option>
   </component>
 </project>
