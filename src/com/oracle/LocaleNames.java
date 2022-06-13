@@ -136,13 +136,17 @@ public class LocaleNames {
     static String getLine(String id, Locale loc, List<Locale> supported, Function<Locale, String> getter) {
         var cands = ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES).getCandidateLocales("", loc);
         var parent = loc.equals(Locale.ROOT) ? Locale.ROOT :
-                cands.get(IntStream.range(0, cands.size())
-                        .filter(i -> cands.get(i).equals(loc))
+                cands.get(IntStream.range(IntStream.range(0, cands.size())
+                            .filter(i -> cands.get(i).equals(loc))
+                            .findFirst()
+                            .orElseThrow() + 1, cands.size())
+                        .filter(i -> supported.contains(cands.get(i)))
                         .findFirst()
-                        .orElseThrow() + 1);
+                        .orElse(cands.size() - 1));
         var lName = getter.apply(loc);
 
-        if (loc.equals(Locale.ROOT) || !supported.contains(parent)) {
+        if (loc.equals(Locale.ROOT) || loc.getLanguage().equals("no") ||
+            loc.getLanguage().equals("nb") || loc.getLanguage().equals("nn")) { // do not mess with Norwegian here
             return id + "=" + lName;
         } else {
             return lName.equals(getter.apply(parent)) ? null : id + "=" + lName;
