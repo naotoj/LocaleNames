@@ -67,17 +67,22 @@ public class LocaleNames {
                         Matcher m1 = LANG.matcher(line);
                         Matcher m2 = RGN.matcher(line);
                         Matcher m3 = SCPT.matcher(line);
+                        String id = null;
+                        Function<Locale, String> f = null;
                         builder.clear();
 
                         if (m1.matches()) {
-                            String id = m1.group("id");
-                            line = getLine(id, loc, true, (l) -> builder.setLanguage(id).build().getDisplayLanguage(l));
+                            id = m1.group("id");
+                            f  = builder.setLanguage(id).build()::getDisplayLanguage;
                         } else if (m2.matches()) {
-                            String id = m2.group("id");
-                            line = getLine(id, loc, true, (l) -> builder.setRegion(id).build().getDisplayCountry(l));
+                            id = m2.group("id");
+                            f  = builder.setRegion(id).build()::getDisplayCountry;
                         } else if (m3.matches()) {
-                            String id = m3.group("id");
-                            line = getLine(id, loc, true, (l) -> builder.setScript(id).build().getDisplayScript(l));
+                            id = m3.group("id");
+                            f  = builder.setScript(id).build()::getDisplayScript;
+                        }
+                        if (id != null) {
+                            line = getLine(id, loc, true, f);
                         }
                         return line != null ? Stream.of(line) : Stream.empty();
                     })
@@ -110,7 +115,7 @@ public class LocaleNames {
 
                         if (m1.matches()) {
                             String id = m1.group("id");
-                            line = getLine(id, loc, false, (l) -> Currency.getInstance(id.toUpperCase(Locale.ROOT)).getDisplayName(l));
+                            line = getLine(id, loc, false, Currency.getInstance(id.toUpperCase(Locale.ROOT))::getDisplayName);
                         }
                         return line != null ? Stream.of(line) : Stream.empty();
                     })
